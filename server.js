@@ -356,6 +356,7 @@ app.post('/webhook', async (req, res) => {
                             { replyToken, messages: [{ type: 'text', text: replyText }] },
                             { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` } }
                         );
+                    } // end else if (isDirectChat)
                 } catch (error) {
                     console.error('Vision AI Error:', error.message || error);
                     try {
