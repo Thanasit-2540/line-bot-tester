@@ -296,8 +296,12 @@ app.post('/webhook', async (req, res) => {
             if (event.type === 'message' && event.message.type === 'image') {
                 const replyToken = event.replyToken;
                 const messageId = event.message.id;
-                const isGroup = source && source.type === 'group';
-                const roomId = isGroup ? source.groupId : (source && source.userId ? source.userId : null);
+                // ถือว่าเป็นกลุ่มถ้า source.type เป็น 'group' หรือ 'room'
+                const isGroup = source && (source.type === 'group' || source.type === 'room');
+                const isDirectChat = source && source.type === 'user';
+                const roomId = isGroup
+                    ? (source.groupId || source.roomId)
+                    : (source && source.userId ? source.userId : null);
 
                 try {
                     // ดาวน์โหลดรูปจาก LINE Server
@@ -318,9 +322,10 @@ app.post('/webhook', async (req, res) => {
                     global.lastRoomImage[roomId] = { data: base64Image, mimeType };
 
                     if (isGroup) {
-                        // ✅ กลุ่ม: เงียบ บันทึกรูปไว้เฉยๆ ไม่ตอบ
+                        // ✅ กลุ่ม/ห้อง: เงียบ บันทึกรูปไว้เฉยๆ ไม่ตอบ
                         // รอให้ใครพิมพ์ "Bot ดูรูปนี้" ค่อยวิเคราะห์
-                    } else {
+                        console.log(`[Image saved] roomId: ${roomId}, sourceType: ${source.type}`);
+                    } else if (isDirectChat) {
                         // ✅ แชทส่วนตัว: วิเคราะห์รูปให้ทันทีเลย
                         const now = Date.now();
                         global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(t => now - t < 60000);
