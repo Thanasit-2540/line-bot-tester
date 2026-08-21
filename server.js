@@ -197,8 +197,9 @@ app.post('/webhook', async (req, res) => {
                 else if (userText.toLowerCase().startsWith('bot')) {
                     const question = userText.substring(3).trim(); // ตัดคำว่า bot ออก
 
-                    // 🔍 ถ้าพิมพ์ "Bot ดูรูป..." ให้ดึงรูปล่าสุดในห้องนี้มาวิเคราะห์
-                    const isDuRup = question.toLowerCase().startsWith('ดูรูป');
+                    // 🔍 ถ้าพิมพ์คำเกี่ยวกับรูป ให้ดึงรูปล่าสุดมาวิเคราะห์
+                    const q = question.toLowerCase();
+                    const isDuRup = q.startsWith('ดูรูป') || q.startsWith('รูปนี้') || q.startsWith('รูปก่อน') || q.startsWith('วิเคราะห์รูป') || q.includes('รูปที่ส่ง');
                     const roomId = (source && source.groupId) ? source.groupId : (source && source.userId) ? source.userId : null;
                     const savedImage = roomId && global.lastRoomImage ? global.lastRoomImage[roomId] : null;
 
