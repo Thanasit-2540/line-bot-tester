@@ -5,10 +5,12 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f5f7f9;
     display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    flex-direction: column; /* เปลี่ยนให้เรียงการ์ดจากบนลงล่าง */
+    align-items: center;    /* จัดให้อยู่ตรงกลางจอ */
+    min-height: 100vh;      /* ให้ความสูงยืดตามเนื้อหา */
     margin: 0;
+    padding: 20px;          /* เพิ่มขอบเว้นระยะห่างในจอมือถือ */
+    box-sizing: border-box;
 }
 
 /* กล่องหลักของ Dashboard */
@@ -19,6 +21,7 @@ body {
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     width: 100%;
     max-width: 450px;
+    box-sizing: border-box; /* ป้องกันไม่ให้การ์ดทะลุจอ */
 }
 
 h2 {
@@ -120,6 +123,7 @@ button:disabled {
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     width: 100%;
     max-width: 450px;
+    box-sizing: border-box; /* ป้องกันไม่ให้การ์ดทะลุจอ */
 }
 
 .user-item {
