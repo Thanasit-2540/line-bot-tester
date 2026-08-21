@@ -256,6 +256,78 @@ app.post('/webhook', async (req, res) => {
                     }
                 }
             }
+
+            // 3. 📸 รองรับการส่งรูปภาพ + วิเคราะห์ด้วย Vision AI
+            if (event.type === 'message' && event.message.type === 'image') {
+                const replyToken = event.replyToken;
+                const messageId = event.message.id;
+
+                try {
+                    // ดาวน์โหลดรูปจาก LINE Server มาเก็บไว้ใน Memory ก่อน
+                    const imageResponse = await axios.get(
+                        `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+                        {
+                            headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` },
+                            responseType: 'arraybuffer' // รับข้อมูลรูปเป็น binary
+                        }
+                    );
+
+                    // แปลงรูปเป็น Base64 เพื่อส่งให้ Gemini ดู
+                    const base64Image = Buffer.from(imageResponse.data).toString('base64');
+                    const mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
+
+                    // เช็คโอเวอร์โหลด Rate Limit
+                    const now = Date.now();
+                    global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(t => now - t < 60000);
+
+                    let replyText = '';
+                    if (global.aiRequestTimestamps.length >= 10) {
+                        replyText = 'ใจเย็นๆ ก่อนนะคะพี่! ส่งรูปรัวเกินไปแล้ว ขอพักสมองแป๊บนึงนะคะ 😵‍💫';
+                    } else if (!GEMINI_API_KEY) {
+                        replyText = 'ยังไม่มีกุญแจ AI เลยค่ะพี่ ช่วยใส่ GEMINI_API_KEY ใน Render ก่อนนะคะ 🗝️';
+                    } else {
+                        global.aiRequestTimestamps.push(now);
+
+                        // ส่งรูปให้ Gemini วิเคราะห์ (Vision AI)
+                        const result = await genAI.models.generateContent({
+                            model: "gemini-3.6-flash",
+                            contents: [
+                                {
+                                    role: "user",
+                                    parts: [
+                                        {
+                                            inlineData: {
+                                                mimeType: mimeType,
+                                                data: base64Image
+                                            }
+                                        },
+                                        {
+                                            text: `คุณคือผู้ช่วย AI ประจำโรงงาน ชื่อ "น้องบอท" เพศหญิง นิสัยร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้ให้หน่อยนะคะ บอกว่าเห็นอะไร มีจุดผิดปกติหรือน่ากังวลไหม และให้คำแนะนำสั้นๆ ไม่เกิน 40 คำ ลงท้ายด้วย 'ค่ะ' หรือ 'นะคะ' ด้วยนะคะ`
+                                        }
+                                    ]
+                                }
+                            ]
+                        });
+                        replyText = result.text;
+                    }
+
+                    // ส่งคำตอบกลับไปใน LINE
+                    await axios.post(
+                        'https://api.line.me/v2/bot/message/reply',
+                        { replyToken, messages: [{ type: 'text', text: replyText }] },
+                        { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` } }
+                    );
+                } catch (error) {
+                    console.error('Vision AI Error:', error.message || error);
+                    try {
+                        await axios.post(
+                            'https://api.line.me/v2/bot/message/reply',
+                            { replyToken, messages: [{ type: 'text', text: 'ขออภัยค่ะ น้องมองรูปไม่เห็นชั่วคราว สมองช็อตเลยค่ะ 😵‍💫 ลองใหม่อีกทีนะคะ' }] },
+                            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` } }
+                        );
+                    } catch (e) {}
+                }
+            }
         }
     }
 });
