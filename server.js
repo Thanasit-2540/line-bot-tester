@@ -2,13 +2,13 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
 // ==========================================
 // 🔑 ดึง GEMINI API KEY จากการตั้งค่าของเซิร์ฟเวอร์ Render (ป้องกันการโดนแบน)
 // ==========================================
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 // ==========================================
 
 // นำเข้าโมดูลสร้างการ์ด Flex Message ที่เราแยกไฟล์ไว้
@@ -207,14 +207,15 @@ app.post('/webhook', async (req, res) => {
                                     // บันทึกเวลาที่เรียกใช้งานครั้งนี้
                                     global.aiRequestTimestamps.push(now);
                                     
-                                    // เปลี่ยนมาใช้ gemini-3.0-flash ตามคำสั่งของ Google
-                                    const model = genAI.getGenerativeModel({ model: "gemini-3.0-flash" });
-                                    
                                     // สั่งให้ AI สวมบทบาทเป็นผู้หญิง ติดตลก
                                     const prompt = `คุณคือผู้ช่วย AI ประจำโรงงานอุตสาหกรรม ชื่อ "น้องบอท" เป็นเพศหญิง นิสัยร่าเริง กวนนิดๆ ติดตลกหน่อยๆ คุยเก่งและเป็นกันเอง คอยช่วยงานช่างและวิศวกร ตอบคำถามนี้แบบสั้นๆ กระชับ และลงท้ายด้วย 'ค่ะ/นะคะ': ${question}`;
                                     
-                                    const result = await model.generateContent(prompt);
-                                    const aiResponse = result.response.text();
+                                    // ใช้ SDK ใหม่ @google/genai (v1alpha - รองรับโมเดลล่าสุด)
+                                    const result = await genAI.models.generateContent({
+                                        model: "gemini-2.5-flash",
+                                        contents: prompt
+                                    });
+                                    const aiResponse = result.text;
                                     
                                     messagesPayload = [{ type: 'text', text: aiResponse }];
                                 }
