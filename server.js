@@ -196,8 +196,43 @@ app.post('/webhook', async (req, res) => {
                 // 3. ถ้าขึ้นต้นด้วย "Bot" หรือ "bot" ให้ส่งไปหา AI ผู้หญิงติดตลก
                 else if (userText.toLowerCase().startsWith('bot')) {
                     const question = userText.substring(3).trim(); // ตัดคำว่า bot ออก
-                    
-                    if (question === '') {
+
+                    // 🔍 ถ้าพิมพ์ "Bot ดูรูป..." ให้ดึงรูปล่าสุดในห้องนี้มาวิเคราะห์
+                    const isDuRup = question.toLowerCase().startsWith('ดูรูป');
+                    const roomId = (source && source.groupId) ? source.groupId : (source && source.userId) ? source.userId : null;
+                    const savedImage = roomId && global.lastRoomImage ? global.lastRoomImage[roomId] : null;
+
+                    if (isDuRup && savedImage) {
+                        try {
+                            const now = Date.now();
+                            global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(t => now - t < 60000);
+                            if (global.aiRequestTimestamps.length >= 10) {
+                                messagesPayload = [{ type: 'text', text: 'ใจเย็นๆ ก่อนนะคะพี่ๆ รัวเกินไปแล้ว ขอพักแป๊บนึงนะคะ 😵‍💫' }];
+                            } else {
+                                global.aiRequestTimestamps.push(now);
+                                const extraQuestion = question.substring(4).trim(); // ตัด "ดูรูป" ออก
+                                const analysisPrompt = extraQuestion
+                                    ? `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้แล้วตอบคำถามนี้: "${extraQuestion}" ตอบไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ`
+                                    : `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้ให้หน่อยนะคะ บอกว่าเห็นอะไร มีอะไรผิดปกติไหม แนะนำสั้นๆ ไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ`;
+                                const result = await genAI.models.generateContent({
+                                    model: "gemini-3.6-flash",
+                                    contents: [{
+                                        role: "user",
+                                        parts: [
+                                            { inlineData: { mimeType: savedImage.mimeType, data: savedImage.data } },
+                                            { text: analysisPrompt }
+                                        ]
+                                    }]
+                                });
+                                messagesPayload = [{ type: 'text', text: result.text }];
+                            }
+                        } catch (err) {
+                            console.error("Vision (group) Error:", err);
+                            messagesPayload = [{ type: 'text', text: 'ขออภัยค่ะ น้องดูรูปไม่ออกชั่วคราว ลองใหม่นะคะ 😵‍💫' }];
+                        }
+                    } else if (isDuRup && !savedImage) {
+                        messagesPayload = [{ type: 'text', text: 'น้องหารูปไม่เจอเลยค่ะพี่! 🤔 ช่วยส่งรูปมาในห้องนี้ก่อน แล้วค่อยพิมพ์ "Bot ดูรูปนี้" นะคะ~' }];
+                    } else if (question === '') {
                         messagesPayload = [{ type: 'text', text: 'เรียกชื่อน้องแล้ว มีอะไรให้ช่วยไหมคะ? 🥺' }];
                     } else {
                         // ดึงประวัติการเรียก AI แล้วลบข้อมูลที่เก่ากว่า 1 นาที (60000 ms) ทิ้งไป
@@ -257,66 +292,65 @@ app.post('/webhook', async (req, res) => {
                 }
             }
 
-            // 3. 📸 รองรับการส่งรูปภาพ + วิเคราะห์ด้วย Vision AI
+            // 3. 📸 รองรับการส่งรูปภาพ
             if (event.type === 'message' && event.message.type === 'image') {
                 const replyToken = event.replyToken;
                 const messageId = event.message.id;
+                const isGroup = source && source.type === 'group';
+                const roomId = isGroup ? source.groupId : (source && source.userId ? source.userId : null);
 
                 try {
-                    // ดาวน์โหลดรูปจาก LINE Server มาเก็บไว้ใน Memory ก่อน
+                    // ดาวน์โหลดรูปจาก LINE Server
                     const imageResponse = await axios.get(
                         `https://api-data.line.me/v2/bot/message/${messageId}/content`,
                         {
                             headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` },
-                            responseType: 'arraybuffer' // รับข้อมูลรูปเป็น binary
+                            responseType: 'arraybuffer'
                         }
                     );
 
-                    // แปลงรูปเป็น Base64 เพื่อส่งให้ Gemini ดู
+                    // แปลงรูปเป็น Base64
                     const base64Image = Buffer.from(imageResponse.data).toString('base64');
                     const mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
 
-                    // เช็คโอเวอร์โหลด Rate Limit
-                    const now = Date.now();
-                    global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(t => now - t < 60000);
+                    // 💾 บันทึกรูปล่าสุดไว้ทุกห้อง (ทั้งกลุ่มและส่วนตัว)
+                    if (!global.lastRoomImage) global.lastRoomImage = {};
+                    global.lastRoomImage[roomId] = { data: base64Image, mimeType };
 
-                    let replyText = '';
-                    if (global.aiRequestTimestamps.length >= 10) {
-                        replyText = 'ใจเย็นๆ ก่อนนะคะพี่! ส่งรูปรัวเกินไปแล้ว ขอพักสมองแป๊บนึงนะคะ 😵‍💫';
-                    } else if (!GEMINI_API_KEY) {
-                        replyText = 'ยังไม่มีกุญแจ AI เลยค่ะพี่ ช่วยใส่ GEMINI_API_KEY ใน Render ก่อนนะคะ 🗝️';
+                    if (isGroup) {
+                        // ✅ กลุ่ม: เงียบ บันทึกรูปไว้เฉยๆ ไม่ตอบ
+                        // รอให้ใครพิมพ์ "Bot ดูรูปนี้" ค่อยวิเคราะห์
                     } else {
-                        global.aiRequestTimestamps.push(now);
+                        // ✅ แชทส่วนตัว: วิเคราะห์รูปให้ทันทีเลย
+                        const now = Date.now();
+                        global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(t => now - t < 60000);
 
-                        // ส่งรูปให้ Gemini วิเคราะห์ (Vision AI)
-                        const result = await genAI.models.generateContent({
-                            model: "gemini-3.6-flash",
-                            contents: [
-                                {
+                        let replyText = '';
+                        if (global.aiRequestTimestamps.length >= 10) {
+                            replyText = 'ใจเย็นๆ ก่อนนะคะพี่! ส่งรูปรัวเกินไปแล้ว ขอพักสมองแป๊บนึงนะคะ 😵‍💫';
+                        } else if (!GEMINI_API_KEY) {
+                            replyText = 'ยังไม่มีกุญแจ AI เลยค่ะพี่ ช่วยใส่ GEMINI_API_KEY ใน Render ก่อนนะคะ 🗝️';
+                        } else {
+                            global.aiRequestTimestamps.push(now);
+                            const result = await genAI.models.generateContent({
+                                model: "gemini-3.6-flash",
+                                contents: [{
                                     role: "user",
                                     parts: [
-                                        {
-                                            inlineData: {
-                                                mimeType: mimeType,
-                                                data: base64Image
-                                            }
-                                        },
-                                        {
-                                            text: `คุณคือผู้ช่วย AI ประจำโรงงาน ชื่อ "น้องบอท" เพศหญิง นิสัยร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้ให้หน่อยนะคะ บอกว่าเห็นอะไร มีจุดผิดปกติหรือน่ากังวลไหม และให้คำแนะนำสั้นๆ ไม่เกิน 40 คำ ลงท้ายด้วย 'ค่ะ' หรือ 'นะคะ' ด้วยนะคะ`
-                                        }
+                                        { inlineData: { mimeType, data: base64Image } },
+                                        { text: `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้ให้หน่อยนะคะ บอกว่าเห็นอะไร มีจุดผิดปกติหรือน่ากังวลไหม แนะนำสั้นๆ ไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ` }
                                     ]
-                                }
-                            ]
-                        });
-                        replyText = result.text;
-                    }
+                                }]
+                            });
+                            replyText = result.text;
+                        }
 
-                    // ส่งคำตอบกลับไปใน LINE
-                    await axios.post(
-                        'https://api.line.me/v2/bot/message/reply',
-                        { replyToken, messages: [{ type: 'text', text: replyText }] },
-                        { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` } }
-                    );
+                        // ส่งคำตอบกลับไปใน LINE
+                        await axios.post(
+                            'https://api.line.me/v2/bot/message/reply',
+                            { replyToken, messages: [{ type: 'text', text: replyText }] },
+                            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` } }
+                        );
                 } catch (error) {
                     console.error('Vision AI Error:', error.message || error);
                     try {
