@@ -165,7 +165,15 @@ app.post('/webhook', async (req, res) => {
                 // 1. ถ้าพิมพ์ "เมนู" ให้โชว์แผงควบคุมเหมือนเดิม
                 if (userText === 'เมนู' || userText === '?') {
                     messagesPayload = [getSmartFactoryFlexMessage()];
-                } 
+                }
+                // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
+                else if (userText === 'สวัสดี') {
+                    messagesPayload = [{ type: 'text', text: 'สวัสดีค่ะพี่! 👋😄 วันนี้มีงานอะไรให้น้องช่วยบ้างคะ? พิมพ์ "Bot" แล้วตามด้วยคำถามได้เลยนะคะ~' }];
+                }
+                // 1.2 ปุ่มออกจากระบบ (จากการ์ด Flex)
+                else if (userText === 'ขอบคุณครับ' || userText === 'ขอบคุณ' || userText === 'ขอบคุณค่ะ') {
+                    messagesPayload = [{ type: 'text', text: 'ยินดีให้บริการเสมอค่ะพี่! 🙏💕 ถ้าต้องการน้องอีกก็เรียกได้เลยนะคะ~ ไปทำงานต่อได้เล้ยยย!' }];
+                }
                 // 2. ถ้าพิมพ์ "โควต้า" ให้เช็คจำนวนข้อความ
                 else if (userText === 'โควต้า') {
                     try {
