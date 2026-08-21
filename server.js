@@ -5,9 +5,9 @@ const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ==========================================
-// 🔑 ใส่ GEMINI API KEY ตรงนี้ (เดี๋ยวเราไปเอากัน)
+// 🔑 ดึง GEMINI API KEY จากการตั้งค่าของเซิร์ฟเวอร์ Render (ป้องกันการโดนแบน)
 // ==========================================
-const GEMINI_API_KEY = 'AQ.Ab8RN6KQCoW5kNTfSUCwq98KRE82qWjPBTt1PHdczoLG69zcAg';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // ==========================================
 
@@ -201,8 +201,8 @@ app.post('/webhook', async (req, res) => {
                             messagesPayload = [{ type: 'text', text: 'ใจเย็นๆ ก่อนนะคะพี่ๆ ถามรัวเกิน 10 คำถามใน 1 นาทีแล้ว สมองน้องบอทร้อนไปหมดแล้วค่ะ! ขอพักหายใจสักแป๊บนะคะ 😵‍💫💦' }];
                         } else {
                             try {
-                                if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
-                                    messagesPayload = [{ type: 'text', text: 'รอแป๊บนะคะ ช่างยังไม่ได้ใส่กุญแจสมอง AI ให้หนูเลยค่ะ 🧠🗝️' }];
+                                if (!GEMINI_API_KEY) {
+                                    messagesPayload = [{ type: 'text', text: 'รอแป๊บนะคะ ช่างยังไม่ได้ใส่กุญแจสมอง AI ใน Render ให้หนูเลยค่ะ 🧠🗝️' }];
                                 } else {
                                     // บันทึกเวลาที่เรียกใช้งานครั้งนี้
                                     global.aiRequestTimestamps.push(now);
