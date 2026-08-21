@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LINE Bot Dashboard</title>
+    <!-- ลิงก์ไปยังไฟล์ CSS ที่แยกออกมา -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="dashboard-card">
+    <h2>🟢 LINE Bot Control</h2>
+    
+    <div class="quota-box" id="quotaBox">
+        กำลังตรวจสอบโควต้าข้อความ...
+    </div>
+    
+    <div class="form-group">
+        <label for="userId">เป้าหมาย (User ID):</label>
+        <input type="text" id="userId" placeholder="ตัวอย่าง: U1234567890abcdef..." required>
+        <span class="hint">หา User ID ได้จากเว็บ LINE Developers</span>
+    </div>
+
+    <div class="form-group">
+        <label for="message">ข้อความที่จะส่ง:</label>
+        <textarea id="message" placeholder="พิมพ์ข้อความที่ต้องการให้บอทพูด..." required></textarea>
+    </div>
+
+    <button id="sendBtn" onclick="sendMessage()">🚀 ส่งข้อความผ่านบอท</button>
+
+    <div id="statusBox" class="status-message"></div>
+</div>
+
+<div class="user-list-card">
+    <h3 style="margin-top: 0; color: #333; text-align: center;">🎣 รายชื่อ ID ที่ดักจับได้</h3>
+    <button onclick="fetchUsers()" style="background: #2196f3; padding: 8px; margin-bottom: 10px; font-size: 14px; width: 100%; border: none; color: white; border-radius: 8px; cursor: pointer;">🔄 รีเฟรชรายชื่อ</button>
+    <div id="usersContainer">
+        <div style="text-align: center; color: #777; font-size: 13px;">ยังไม่มีข้อมูล ให้คนพิมพ์หาบอทก่อน</div>
+    </div>
+</div>
+
+<div class="user-list-card" style="margin-top: 20px;">
+    <h3 style="margin-top: 0; color: #333; text-align: center;">💬 กล่องข้อความ (Live Chat)</h3>
+    <div id="chatContainer" style="max-height: 200px; overflow-y: auto; background: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+        <div style="text-align: center; color: #777; font-size: 13px;">กำลังรอข้อความ...</div>
+    </div>
+</div>
+
+<!-- ลิงก์ไปยังไฟล์ JavaScript ที่แยกออกมา -->
+<script src="app.js"></script>
+
+</body>
+</html>

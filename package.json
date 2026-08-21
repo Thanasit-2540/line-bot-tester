@@ -1,0 +1,13 @@
+{
+  "name": "line-bot-tester",
+  "version": "1.0.0",
+  "description": "LINE Bot Dashboard Tester",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "express": "^4.19.0"
+  }
+}

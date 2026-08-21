@@ -1,0 +1,157 @@
+/* ==================================================
+ * ไฟล์ CSS สำหรับตกแต่งหน้าเว็บ Dashboard
+ * ================================================== */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7f9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+/* กล่องหลักของ Dashboard */
+.dashboard-card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 450px;
+}
+
+h2 {
+    color: #00B900; /* สีเขียวของ LINE */
+    margin-top: 0;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* กล่องกรอกข้อมูล */
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+input[type="text"], textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+
+textarea {
+    resize: vertical;
+    height: 100px;
+}
+
+/* ปุ่มส่งข้อความ */
+button {
+    width: 100%;
+    padding: 14px;
+    background-color: #00B900;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #009900;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* กล่องแสดงสถานะสำเร็จ/ล้มเหลว */
+.status-message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    display: none;
+    font-weight: bold;
+}
+.success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+.error { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+
+.hint {
+    font-size: 12px;
+    color: #777;
+    margin-top: 5px;
+    display: block;
+}
+
+/* กล่องแสดงโควต้าข้อความ */
+.quota-box {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    color: #1565c0;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* กล่องรายชื่อ User/Group และ Live Chat */
+.user-list-card {
+    margin-top: 20px;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 450px;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+.user-item:last-child { border-bottom: none; }
+
+/* ปุ่มนำไปใช้ */
+.use-btn {
+    background-color: #ff9800;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.use-btn:hover { background-color: #e68a00; }
+
+/* ป้ายสถานะ User/Group */
+.badge {
+    background: #ccc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: white;
+    font-size: 11px;
+    margin-right: 5px;
+}
+.badge.user { background: #4caf50; }
+.badge.group { background: #2196f3; }
