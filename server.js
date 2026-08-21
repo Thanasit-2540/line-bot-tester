@@ -207,7 +207,8 @@ app.post('/webhook', async (req, res) => {
                                     // บันทึกเวลาที่เรียกใช้งานครั้งนี้
                                     global.aiRequestTimestamps.push(now);
                                     
-                                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                                    // เปลี่ยนมาใช้ gemini-pro ซึ่งเสถียรที่สุดในทุกเวอร์ชัน
+                                    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
                                     
                                     // สั่งให้ AI สวมบทบาทเป็นผู้หญิง ติดตลก
                                     const prompt = `คุณคือผู้ช่วย AI ประจำโรงงานอุตสาหกรรม ชื่อ "น้องบอท" เป็นเพศหญิง นิสัยร่าเริง กวนนิดๆ ติดตลกหน่อยๆ คุยเก่งและเป็นกันเอง คอยช่วยงานช่างและวิศวกร ตอบคำถามนี้แบบสั้นๆ กระชับ และลงท้ายด้วย 'ค่ะ/นะคะ': ${question}`;
