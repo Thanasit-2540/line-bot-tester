@@ -83,9 +83,18 @@ function getSmartFactoryFlexMessage() {
                     {
                         type: "button",
                         style: "primary",
+                        color: "#FF9800", // สีส้มเพื่อความโดดเด่น
+                        height: "sm",
+                        action: { type: "message", label: "📊 เช็คโควต้า", text: "โควต้า" },
+                        margin: "sm"
+                    },
+                    {
+                        type: "button",
+                        style: "primary",
                         color: "#3A3F50",
                         height: "sm",
-                        action: { type: "message", label: "🙏 ออกจากระบบ", text: "ขอบคุณครับ" }
+                        action: { type: "message", label: "🙏 ออกจากระบบ", text: "ขอบคุณครับ" },
+                        margin: "sm"
                     }
                 ]
             }

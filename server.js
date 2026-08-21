@@ -2,6 +2,14 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// ==========================================
+// 🔑 ใส่ GEMINI API KEY ตรงนี้ (เดี๋ยวเราไปเอากัน)
+// ==========================================
+const GEMINI_API_KEY = 'AQ.Ab8RN6KQCoW5kNTfSUCwq98KRE82qWjPBTt1PHdczoLG69zcAg';
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// ==========================================
 
 // นำเข้าโมดูลสร้างการ์ด Flex Message ที่เราแยกไฟล์ไว้
 const { getSmartFactoryFlexMessage } = require('./public/FlexDesign/flex-message');
@@ -154,18 +162,67 @@ app.post('/webhook', async (req, res) => {
 
                 let messagesPayload = [];
 
-                // 1. เรียกเมนู (ดีไซน์ Flex Message ขั้นสุดยอด - Dark Mode Premium)
+                // 1. ถ้าพิมพ์ "เมนู" ให้โชว์แผงควบคุมเหมือนเดิม
                 if (userText === 'เมนู' || userText === '?') {
-                    // ดึงโครงสร้าง JSON ของ Flex Message มาจากไฟล์ที่เราแยกไว้
                     messagesPayload = [getSmartFactoryFlexMessage()];
-                }
-                // 2. ตอบกลับ "สวัสดี"
-                else if (userText === 'สวัสดี') {
-                    messagesPayload = [{ type: 'text', text: 'สวัสดีครับผม! 🤖' }];
                 } 
-                // 3. ตอบกลับ "ขอบคุณครับ"
-                else if (userText === 'ขอบคุณครับ' || userText === 'ขอบคุณ') {
-                    messagesPayload = [{ type: 'text', text: 'ยินดีให้บริการครับ ขอบคุณเช่นกันครับ! 🙏' }];
+                // 2. ถ้าพิมพ์ "โควต้า" ให้เช็คจำนวนข้อความ
+                else if (userText === 'โควต้า') {
+                    try {
+                        const consumptionRes = await axios.get('https://api.line.me/v2/bot/message/quota/consumption', {
+                            headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` }
+                        });
+                        const quotaRes = await axios.get('https://api.line.me/v2/bot/message/quota', {
+                            headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` }
+                        });
+                        
+                        const lineUsage = consumptionRes.data.totalUsage;
+                        const lineLimit = quotaRes.data.type === 'limited' ? quotaRes.data.value : 'ไม่จำกัด';
+                        
+                        const quotaText = `📊 รายงานสถานะโควต้าประจำเดือน\n\n🟢 LINE ข้อความตอบกลับ (Reply): ฟรีไม่จำกัด\n🟢 LINE ข้อความส่งหา (Push): ใช้ไป ${lineUsage} / ${lineLimit} ข้อความ\n\n🧠 AI (Gemini): ฟรี 1,500 ครั้ง/วัน (ไม่จำกัดข้อความ)`;
+                        messagesPayload = [{ type: 'text', text: quotaText }];
+                    } catch (err) {
+                        messagesPayload = [{ type: 'text', text: '❌ ไม่สามารถดึงข้อมูลโควต้าได้ กรุณาตรวจสอบ LINE Access Token ค่ะ' }];
+                    }
+                }
+                // 3. ถ้าขึ้นต้นด้วย "Bot" หรือ "bot" ให้ส่งไปหา AI ผู้หญิงติดตลก
+                else if (userText.toLowerCase().startsWith('bot')) {
+                    const question = userText.substring(3).trim(); // ตัดคำว่า bot ออก
+                    
+                    if (question === '') {
+                        messagesPayload = [{ type: 'text', text: 'เรียกชื่อน้องแล้ว มีอะไรให้ช่วยไหมคะ? 🥺' }];
+                    } else {
+                        // ดึงประวัติการเรียก AI แล้วลบข้อมูลที่เก่ากว่า 1 นาที (60000 ms) ทิ้งไป
+                        const now = Date.now();
+                        global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(timestamp => now - timestamp < 60000);
+                        
+                        // ตรวจสอบว่าใน 1 นาทีที่ผ่านมา มีคนถามเกิน 10 ครั้งหรือยัง
+                        if (global.aiRequestTimestamps.length >= 10) {
+                            messagesPayload = [{ type: 'text', text: 'ใจเย็นๆ ก่อนนะคะพี่ๆ ถามรัวเกิน 10 คำถามใน 1 นาทีแล้ว สมองน้องบอทร้อนไปหมดแล้วค่ะ! ขอพักหายใจสักแป๊บนะคะ 😵‍💫💦' }];
+                        } else {
+                            try {
+                                if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
+                                    messagesPayload = [{ type: 'text', text: 'รอแป๊บนะคะ ช่างยังไม่ได้ใส่กุญแจสมอง AI ให้หนูเลยค่ะ 🧠🗝️' }];
+                                } else {
+                                    // บันทึกเวลาที่เรียกใช้งานครั้งนี้
+                                    global.aiRequestTimestamps.push(now);
+                                    
+                                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                                    
+                                    // สั่งให้ AI สวมบทบาทเป็นผู้หญิง ติดตลก
+                                    const prompt = `คุณคือผู้ช่วย AI ประจำโรงงานอุตสาหกรรม ชื่อ "น้องบอท" เป็นเพศหญิง นิสัยร่าเริง กวนนิดๆ ติดตลกหน่อยๆ คุยเก่งและเป็นกันเอง คอยช่วยงานช่างและวิศวกร ตอบคำถามนี้แบบสั้นๆ กระชับ และลงท้ายด้วย 'ค่ะ/นะคะ': ${question}`;
+                                    
+                                    const result = await model.generateContent(prompt);
+                                    const aiResponse = result.response.text();
+                                    
+                                    messagesPayload = [{ type: 'text', text: aiResponse }];
+                                }
+                            } catch (error) {
+                                console.error("Gemini Error:", error);
+                                messagesPayload = [{ type: 'text', text: 'ขออภัยค่ะ ตอนนี้สมอง AI ของหนูกำลังช็อตชั่วคราว 😵‍💫' }];
+                            }
+                        }
+                    }
                 }
 
                 // ส่งข้อความตอบกลับเฉพาะเมื่อมีการสร้าง Payload ไว้
