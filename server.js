@@ -261,6 +261,16 @@ app.get('/api/messages', (req, res) => {
     res.json({ success: true, data: getChatHistory() });
 });
 
+// API สำหรับเช็ครุ่นของ AI (ใช้แก้ปัญหา 404)
+app.get('/api/models', async (req, res) => {
+    try {
+        const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+        res.json({ success: true, models: response.data.models.map(m => m.name) });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 LINE Bot Dashboard เปิดทำงานแล้วที่ http://localhost:${PORT}`);
 });
