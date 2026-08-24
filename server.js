@@ -245,32 +245,56 @@ app.post('/webhook', async (req, res) => {
                         const rows = parseCSV(response.data);
                         rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
 
+                        // จัดกลุ่มงานตามชื่อพนักงาน { "ชื่อ": ["งาน1", "งาน2"] }
+                        const userTasks = {};
+                        for (const row of rows) {
+                            // สมมติให้ คอลัมน์ A = ชื่อ (row[0]), คอลัมน์ B = งาน (row[1])
+                            // (เผื่อพี่พึ่งลบ ID ทิ้งไป)
+                            let name = row[0] ? row[0].trim() : '';
+                            let task = row[1] ? row[1].trim() : '';
+
+                            // ระบบป้องกันเผื่อพี่ลืมลบคอลัมน์ ID (ถ้าช่องแรกยาวๆ เป็น U... ให้ขยับไปดึงช่อง 2 กับ 3 แทน)
+                            if (name.startsWith('U') && name.length > 20) {
+                                name = row[1] ? row[1].trim() : '';
+                                task = row[2] ? row[2].trim() : '';
+                            }
+
+                            if (!name || !task) continue;
+                            
+                            if (!userTasks[name]) {
+                                userTasks[name] = [];
+                            }
+                            userTasks[name].push(task);
+                        }
+
                         let fullText = "📋 **รายละเอียดงานประจำวัน:**\n\n";
                         let hasTask = false;
 
-                        for (const row of rows) {
-                            if (row.length < 3) continue;
-                            const name = row[1] ? row[1].trim() : '';
-                            const task = row[2] ? row[2].trim() : '';
-
-                            if (!name || !task) continue; // ข้ามถ้าไม่มีชื่อหรืองาน
+                        // วนลูปตามรายชื่อคน
+                        for (const [name, tasks] of Object.entries(userTasks)) {
                             hasTask = true;
+                            fullText += `👷‍♂️ ชื่อ: ${name}\n`;
 
-                            // แปลภาษาพม่าด้วย Gemini โดยเน้นภาษาพูดที่เข้าใจง่ายสำหรับแรงงาน
-                            const prompt = `Translate this Thai factory task into Burmese for migrant workers. Use natural, everyday Burmese that is easy for factory workers to understand. Avoid overly formal or literary language. Only output the Burmese translation, nothing else.\n\nThai Task: ${task}`;
-                            let translated = 'ไม่สามารถแปลได้';
-                            try {
-                                const aiResult = await genAI.models.generateContent({
-                                    model: 'gemini-3.6-flash',
-                                    contents: prompt
-                                });
-                                translated = aiResult.text.trim();
-                            } catch (e) {
-                                console.error('Translate Error:', e);
+                            // วนลูปตามงานของแต่ละคน (เพื่อใส่เลขข้อ 1, 2, 3...)
+                            for (let i = 0; i < tasks.length; i++) {
+                                const task = tasks[i];
+
+                                // แปลภาษาพม่าด้วย Gemini
+                                const prompt = `Translate this Thai factory task into Burmese for migrant workers. Use natural, everyday Burmese that is easy for factory workers to understand. Avoid overly formal or literary language. Only output the Burmese translation, nothing else.\n\nThai Task: ${task}`;
+                                let translated = 'ไม่สามารถแปลได้';
+                                try {
+                                    const aiResult = await genAI.models.generateContent({
+                                        model: 'gemini-3.6-flash',
+                                        contents: prompt
+                                    });
+                                    translated = aiResult.text.trim();
+                                } catch (e) {
+                                    console.error('Translate Error:', e);
+                                }
+
+                                fullText += `  ${i + 1}. 🇹🇭 ${task}\n      🇲🇲 ${translated}\n`;
                             }
-
-                            // เพิ่มข้อมูลทีละคนลงไป
-                            fullText += `👷‍♂️ ชื่อ: ${name}\n🇹🇭 งาน: ${task}\n🇲🇲: ${translated}\n\n`;
+                            fullText += `\n`; // เว้นบรรทัดระหว่างคน
                         }
 
                         if (!hasTask) {
