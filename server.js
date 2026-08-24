@@ -246,14 +246,14 @@ app.post('/webhook', async (req, res) => {
                         const rows = parseCSV(response.data);
                         rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
 
-                        let fullText = "📋 **แจกจ่ายงานประจำวันค่ะ!**\n\n";
+                        let fullText = "📋 แจกจ่ายงานประจำวันค่ะ!\n\n";
                         let mentionees = [];
 
                         for (const row of rows) {
                             if (row.length < 3) continue; // ข้ามแถวที่ไม่ครบ
-                            const lineId = row[0];
-                            const name = row[1];
-                            const task = row[2];
+                            const lineId = row[0] ? row[0].trim() : '';
+                            const name = row[1] ? row[1].trim() : '';
+                            const task = row[2] ? row[2].trim() : '';
 
                             if (!lineId || !task) continue; // ข้ามถ้าไม่มี ID หรือไม่มีงาน
 
@@ -286,15 +286,15 @@ app.post('/webhook', async (req, res) => {
                         if (mentionees.length === 0) {
                             messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ 😎' }];
                         } else {
-                            // LINE API ให้ mention ได้สูงสุด 20 คนต่อ 1 บับเบิ้ล (ถ้าเกินต้องหั่น แต่ตอนนี้เผื่อไว้ก่อน)
+                            // LINE API ให้ mention ได้สูงสุด 20 คนต่อ 1 บับเบิ้ล
                             if (mentionees.length > 20) {
                                 mentionees = mentionees.slice(0, 20);
-                                fullText += "\n*(ระบบแสดงผลได้สูงสุด 20 คน)*";
+                                fullText += "*(ระบบแสดงผลได้สูงสุด 20 คน)*\n";
                             }
                             
                             messagesPayload = [{
                                 type: 'text',
-                                text: fullText.trim(),
+                                text: fullText, // เอา .trim() ออกเพื่อป้องกันตำแหน่งแท็กเคลื่อน
                                 mention: { mentionees: mentionees }
                             }];
                         }
