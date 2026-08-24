@@ -64,18 +64,30 @@ async function fetchUsers() {
     }
 }
 
-// ฟังก์ชันดึงข้อความแชท (Live Chat)
+// ฟังก์ชันดึงข้อความแชท (Live Chat) และดักการลงทะเบียน
 async function fetchChats() {
-    const container = document.getElementById('chatContainer');
+    const chatContainer = document.getElementById('chatContainer');
+    const registeredContainer = document.getElementById('registeredContainer');
+    
     try {
         const response = await fetch('/api/messages');
         const result = await response.json();
         
         if (result.success && result.data.length > 0) {
-            container.innerHTML = '';
+            chatContainer.innerHTML = '';
+            
+            // ใช้เก็บคนลงทะเบียน (เพื่อไม่ให้ซ้ำ)
+            const registeredUsers = new Map();
+
             // เอาข้อความใหม่สุดไว้ล่างสุด
             result.data.forEach(msg => {
                 const time = new Date(msg.timestamp).toLocaleTimeString('th-TH');
+                
+                // ดักจับว่าพิมพ์ "ลงทะเบียน" หรือไม่
+                if (msg.text.trim() === 'ลงทะเบียน') {
+                    registeredUsers.set(msg.userId, time);
+                }
+
                 const div = document.createElement('div');
                 div.style.marginBottom = '8px';
                 div.style.padding = '8px';
@@ -90,14 +102,43 @@ async function fetchChats() {
                     </div>
                     <div style="color: #333; font-weight: bold;">${msg.text}</div>
                 `;
-                container.appendChild(div);
+                chatContainer.appendChild(div);
             });
             // เลื่อนกล่องข้อความลงล่างสุดอัตโนมัติ
-            container.scrollTop = container.scrollHeight;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // แสดงคนลงทะเบียน
+            if (registeredUsers.size > 0) {
+                registeredContainer.innerHTML = '';
+                registeredUsers.forEach((time, userId) => {
+                    const div = document.createElement('div');
+                    div.style.background = 'white';
+                    div.style.borderLeft = '4px solid #ff9800';
+                    div.style.padding = '10px';
+                    div.style.marginBottom = '8px';
+                    div.style.borderRadius = '4px';
+                    div.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    div.innerHTML = `
+                        <div style="font-size: 11px; color: #777; margin-bottom: 5px;">เวลา: ${time}</div>
+                        <div style="font-size: 14px; font-family: monospace; font-weight: bold; word-break: break-all; margin-bottom: 8px;">${userId}</div>
+                        <button onclick="copyToClipboard('${userId}')" style="background: #ff9800; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;">📋 ก๊อปปี้ ID</button>
+                    `;
+                    registeredContainer.appendChild(div);
+                });
+            }
         }
     } catch (error) {
         console.error('Error fetching chats');
     }
+}
+
+// ฟังก์ชันสำหรับก๊อปปี้ ID ลงคลิปบอร์ด
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('ก๊อปปี้ ID แล้ว: ' + text);
+    }).catch(err => {
+        console.error('Copy failed', err);
+    });
 }
 
 // ฟังก์ชันสำหรับกดปุ่ม "นำไปใช้" เพื่อคัดลอก ID ลงในช่องกรอกเป้าหมาย

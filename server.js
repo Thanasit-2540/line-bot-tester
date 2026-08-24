@@ -166,6 +166,16 @@ app.post('/webhook', async (req, res) => {
                 if (userText === 'เมนู' || userText === '?') {
                     messagesPayload = [getSmartFactoryFlexMessage()];
                 }
+                // 1.0 ดักคำสั่ง "ลงทะเบียน" เพื่อดึง LINE User ID ให้พี่ไปใส่ใน Excel
+                else if (userText === 'ลงทะเบียน') {
+                    const userId = (source && source.userId) ? source.userId : 'ไม่พบ ID';
+                    const userName = event.source.type === 'user' ? 'แชทส่วนตัว' : 'ในกลุ่ม';
+                    messagesPayload = [{ 
+                        type: 'text', 
+                        text: `✅ ลงทะเบียนสำเร็จ!\n\nรหัส ID ของคุณคือ:\n${userId}\n\n(แจ้งหัวหน้าให้นำรหัสนี้ไปใส่ใน Excel ได้เลยค่ะ)` 
+                    }];
+                    console.log(`[Register] UserID: ${userId} from ${userName}`);
+                }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
                 else if (userText === 'สวัสดี') {
                     messagesPayload = [{ type: 'text', text: 'สวัสดีค่ะพี่! 👋😄 วันนี้มีงานอะไรให้น้องช่วยบ้างคะ? พิมพ์ "Bot" แล้วตามด้วยคำถามได้เลยนะคะ~' }];
