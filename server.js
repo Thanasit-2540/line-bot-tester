@@ -237,17 +237,14 @@ app.post('/webhook', async (req, res) => {
                         type: 'text', 
                         text: `✅ ลงทะเบียนสำเร็จ!\n\nคุณ: ${displayName}\nรหัส ID:\n${userId}\n\n(แจ้งหัวหน้าให้นำรหัสนี้ไปใส่ใน Excel ได้เลยค่ะ)` 
                     }];
-                    console.log(`[Register] UserID: ${userId} (${displayName}) from ${userName}`);
-                }
-                // 1.0.1 ดักคำสั่ง "Bot แจกงาน" หรือ "bot แจกงาน"
-                else if (userText.toLowerCase() === 'bot แจกงาน') {
+                // 1.0.1 ดักคำสั่ง "Bot แจกงาน" (รองรับการที่หัวหน้าพิมพ์ @All นำหน้า)
+                else if (userText.toLowerCase().includes('bot แจกงาน')) {
                     try {
                         const response = await axios.get(SHEET_CSV_URL);
                         const rows = parseCSV(response.data);
                         rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
 
-                        // เริ่มต้นประโยคด้วย @All (4 ตัวอักษร)
-                        let fullText = "@All 📋 แจกจ่ายงานประจำวันค่ะ!\n\n";
+                        let fullText = "📋 **รายละเอียดงานประจำวัน:**\n\n";
                         let hasTask = false;
 
                         for (const row of rows) {
@@ -272,23 +269,16 @@ app.post('/webhook', async (req, res) => {
                             }
 
                             // เพิ่มข้อมูลทีละคนลงไป
-                            fullText += `👷‍♂️ ${name}\n🇹🇭 งาน: ${task}\n🇲🇲: ${translated}\n\n`;
+                            fullText += `👷‍♂️ ชื่อ: ${name}\n🇹🇭 งาน: ${task}\n🇲🇲: ${translated}\n\n`;
                         }
 
                         if (!hasTask) {
                             messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ' }];
                         } else {
-                            // ส่งข้อความ 1 กล่อง และกำหนดให้แท็ก @All ที่ตัวอักษร 4 ตัวแรก
+                            // ส่งข้อความ 1 กล่องปกติ (ไม่ต้องพยายามแท็กแล้ว เพราะ LINE บล็อกบอทฟรี)
                             messagesPayload = [{
                                 type: 'text',
-                                text: fullText.trim(),
-                                mention: {
-                                    mentionees: [{
-                                        index: 0,
-                                        length: 4,
-                                        type: "all"
-                                    }]
-                                }
+                                text: fullText.trim()
                             }];
                         }
 
@@ -296,21 +286,6 @@ app.post('/webhook', async (req, res) => {
                         console.error('แจกงาน Error:', e);
                         messagesPayload = [{ type: 'text', text: '❌ ไม่สามารถดึงข้อมูลแจกงานจาก Google Sheets ได้ค่ะ' }];
                     }
-                }
-                // 1.0.2 ระบบทดสอบการแท็ก (Echo Mention)
-                else if (userText.includes('ทดสอบแท็ก')) {
-                    const textMsg = "@All นี่คือการทดสอบแท็กทุกคนครับ (ถ้าสีน้ำเงินขึ้นและมือถือสั่น แปลว่าผ่าน!)";
-                    messagesPayload = [{
-                        type: 'text',
-                        text: textMsg,
-                        mention: {
-                            mentionees: [{
-                                index: 0,
-                                length: 4,
-                                type: "all"
-                            }]
-                        }
-                    }];
                 }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
                 else if (userText === 'สวัสดี') {
