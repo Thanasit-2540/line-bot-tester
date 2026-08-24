@@ -309,9 +309,7 @@ app.post('/webhook', async (req, res) => {
                 else if (userText.includes('ทดสอบแท็ก')) {
                     if (event.message.mention && event.message.mention.mentionees && event.message.mention.mentionees.length > 0) {
                         const targetId = event.message.mention.mentionees[0].userId;
-                        
-                        // เอาแท็กไว้หน้าสุด (Index = 0) เสมอ เพื่อตัดปัญหาการนับตัวอักษรภาษาไทยของ LINE ผิดพลาด
-                        const textMsg = "@User นี่คือการทดสอบแท็กครับ (ถ้าสีน้ำเงินขึ้นแปลว่าผ่าน!)";
+                        const textMsg = "@User test mention!";
                         
                         messagesPayload = [{
                             type: 'text',
@@ -320,6 +318,7 @@ app.post('/webhook', async (req, res) => {
                                 mentionees: [{
                                     index: 0,
                                     length: 5,
+                                    type: "user",
                                     userId: targetId
                                 }]
                             }
