@@ -309,17 +309,17 @@ app.post('/webhook', async (req, res) => {
                 else if (userText.includes('ทดสอบแท็ก')) {
                     if (event.message.mention && event.message.mention.mentionees && event.message.mention.mentionees.length > 0) {
                         const targetId = event.message.mention.mentionees[0].userId;
-                        const prefix = "รับทราบ! ทดสอบเรียก: ";
-                        const mentionText = "@TargetUser"; 
-                        const suffix = " (ถ้านี่เป็นสีน้ำเงินแปลว่าระบบแท็กทำงานปกติ 100% ครับ!)";
+                        
+                        // เอาแท็กไว้หน้าสุด (Index = 0) เสมอ เพื่อตัดปัญหาการนับตัวอักษรภาษาไทยของ LINE ผิดพลาด
+                        const textMsg = "@User นี่คือการทดสอบแท็กครับ (ถ้าสีน้ำเงินขึ้นแปลว่าผ่าน!)";
                         
                         messagesPayload = [{
                             type: 'text',
-                            text: prefix + mentionText + suffix,
+                            text: textMsg,
                             mention: {
                                 mentionees: [{
-                                    index: prefix.length,
-                                    length: mentionText.length,
+                                    index: 0,
+                                    length: 5,
                                     userId: targetId
                                 }]
                             }
