@@ -246,18 +246,17 @@ app.post('/webhook', async (req, res) => {
                         const rows = parseCSV(response.data);
                         rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
 
-                        let fullText = "แจกจ่ายงานประจำวัน:\n\n"; // เอาอีโมจิออกเพื่อป้องกัน index เคลื่อน
-                        let mentionees = [];
+                        // เริ่มต้นประโยคด้วย @All (4 ตัวอักษร)
+                        let fullText = "@All 📋 แจกจ่ายงานประจำวันค่ะ!\n\n";
+                        let hasTask = false;
 
                         for (const row of rows) {
                             if (row.length < 3) continue;
-                            
-                            // ลบตัวอักษรที่มองไม่เห็น (เช่น BOM) ออกจาก ID ให้เหลือแต่ตัวอักษรและตัวเลข
-                            const lineId = row[0] ? row[0].replace(/[^a-zA-Z0-9]/g, '') : '';
                             const name = row[1] ? row[1].trim() : '';
                             const task = row[2] ? row[2].trim() : '';
 
-                            if (!lineId || !task) continue;
+                            if (!name || !task) continue; // ข้ามถ้าไม่มีชื่อหรืองาน
+                            hasTask = true;
 
                             // แปลภาษาพม่าด้วย Gemini
                             const prompt = `Translate this factory task to Burmese. Keep it clear, concise, and professional. Only output the Burmese translation, nothing else.\nTask: ${task}`;
@@ -272,31 +271,24 @@ app.post('/webhook', async (req, res) => {
                                 console.error('Translate Error:', e);
                             }
 
-                            // จัดรูปแบบข้อความแท็ก
-                            const mentionText = `@${name}`;
-                            const startIndex = fullText.length;
-
-                            fullText += `${mentionText}\nงาน: ${task}\nพม่า: ${translated}\n\n`;
-
-                            mentionees.push({
-                                index: startIndex,
-                                length: mentionText.length,
-                                userId: lineId
-                            });
+                            // เพิ่มข้อมูลทีละคนลงไป
+                            fullText += `👷‍♂️ ${name}\n🇹🇭 งาน: ${task}\n🇲🇲: ${translated}\n\n`;
                         }
 
-                        if (mentionees.length === 0) {
+                        if (!hasTask) {
                             messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ' }];
                         } else {
-                            if (mentionees.length > 20) {
-                                mentionees = mentionees.slice(0, 20);
-                                fullText += "(ระบบแสดงผลได้สูงสุด 20 คน)\n";
-                            }
-                            
+                            // ส่งข้อความ 1 กล่อง และกำหนดให้แท็ก @All ที่ตัวอักษร 4 ตัวแรก
                             messagesPayload = [{
                                 type: 'text',
-                                text: fullText,
-                                mention: { mentionees: mentionees }
+                                text: fullText.trim(),
+                                mention: {
+                                    mentionees: [{
+                                        index: 0,
+                                        length: 4,
+                                        type: "all"
+                                    }]
+                                }
                             }];
                         }
 
