@@ -246,16 +246,18 @@ app.post('/webhook', async (req, res) => {
                         const rows = parseCSV(response.data);
                         rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
 
-                        let fullText = "📋 แจกจ่ายงานประจำวันค่ะ!\n\n";
+                        let fullText = "แจกจ่ายงานประจำวัน:\n\n"; // เอาอีโมจิออกเพื่อป้องกัน index เคลื่อน
                         let mentionees = [];
 
                         for (const row of rows) {
-                            if (row.length < 3) continue; // ข้ามแถวที่ไม่ครบ
-                            const lineId = row[0] ? row[0].trim() : '';
+                            if (row.length < 3) continue;
+                            
+                            // ลบตัวอักษรที่มองไม่เห็น (เช่น BOM) ออกจาก ID ให้เหลือแต่ตัวอักษรและตัวเลข
+                            const lineId = row[0] ? row[0].replace(/[^a-zA-Z0-9]/g, '') : '';
                             const name = row[1] ? row[1].trim() : '';
                             const task = row[2] ? row[2].trim() : '';
 
-                            if (!lineId || !task) continue; // ข้ามถ้าไม่มี ID หรือไม่มีงาน
+                            if (!lineId || !task) continue;
 
                             // แปลภาษาพม่าด้วย Gemini
                             const prompt = `Translate this factory task to Burmese. Keep it clear, concise, and professional. Only output the Burmese translation, nothing else.\nTask: ${task}`;
@@ -272,9 +274,9 @@ app.post('/webhook', async (req, res) => {
 
                             // จัดรูปแบบข้อความแท็ก
                             const mentionText = `@${name}`;
-                            const startIndex = fullText.length; // ตำแหน่งเริ่มของตัว @
+                            const startIndex = fullText.length;
 
-                            fullText += `${mentionText}\n🇹🇭 งาน: ${task}\n🇲🇲: ${translated}\n\n`;
+                            fullText += `${mentionText}\nงาน: ${task}\nพม่า: ${translated}\n\n`;
 
                             mentionees.push({
                                 index: startIndex,
@@ -284,17 +286,16 @@ app.post('/webhook', async (req, res) => {
                         }
 
                         if (mentionees.length === 0) {
-                            messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ 😎' }];
+                            messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ' }];
                         } else {
-                            // LINE API ให้ mention ได้สูงสุด 20 คนต่อ 1 บับเบิ้ล
                             if (mentionees.length > 20) {
                                 mentionees = mentionees.slice(0, 20);
-                                fullText += "*(ระบบแสดงผลได้สูงสุด 20 คน)*\n";
+                                fullText += "(ระบบแสดงผลได้สูงสุด 20 คน)\n";
                             }
                             
                             messagesPayload = [{
                                 type: 'text',
-                                text: fullText, // เอา .trim() ออกเพื่อป้องกันตำแหน่งแท็กเคลื่อน
+                                text: fullText,
                                 mention: { mentionees: mentionees }
                             }];
                         }
@@ -302,6 +303,29 @@ app.post('/webhook', async (req, res) => {
                     } catch (e) {
                         console.error('แจกงาน Error:', e);
                         messagesPayload = [{ type: 'text', text: '❌ ไม่สามารถดึงข้อมูลแจกงานจาก Google Sheets ได้ค่ะ' }];
+                    }
+                }
+                // 1.0.2 ระบบทดสอบการแท็ก (Echo Mention)
+                else if (userText.includes('ทดสอบแท็ก')) {
+                    if (event.message.mention && event.message.mention.mentionees && event.message.mention.mentionees.length > 0) {
+                        const targetId = event.message.mention.mentionees[0].userId;
+                        const prefix = "รับทราบ! ทดสอบเรียก: ";
+                        const mentionText = "@TargetUser"; 
+                        const suffix = " (ถ้านี่เป็นสีน้ำเงินแปลว่าระบบแท็กทำงานปกติ 100% ครับ!)";
+                        
+                        messagesPayload = [{
+                            type: 'text',
+                            text: prefix + mentionText + suffix,
+                            mention: {
+                                mentionees: [{
+                                    index: prefix.length,
+                                    length: mentionText.length,
+                                    userId: targetId
+                                }]
+                            }
+                        }];
+                    } else {
+                        messagesPayload = [{ type: 'text', text: 'กรุณาพิมพ์ "ทดสอบแท็ก @ชื่อเพื่อน" เพื่อให้บอทลองแท็กกลับนะคะ' }];
                     }
                 }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
