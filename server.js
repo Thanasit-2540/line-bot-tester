@@ -171,6 +171,9 @@ function parseCSV(str) {
     return result;
 }
 
+// เก็บประวัติตารางงานตอนเช้าไว้ในหน่วยความจำชั่วคราว เพื่อให้โหมดงานด่วนใช้อ้างอิงผู้ช่วย
+let lastDailySchedule = "";
+
 // API สำหรับให้ LINE ส่ง Webhook เข้ามา
 app.post('/webhook', async (req, res) => {
     // ตอบกลับ LINE ทันทีว่าได้รับแล้ว (ต้องตอบ 200 ไม่งั้น LINE จะถือว่า error)
@@ -245,71 +248,140 @@ app.post('/webhook', async (req, res) => {
                         const rows = parseCSV(response.data);
                         rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
 
-                        // จัดกลุ่มงานตามชื่อพนักงาน { "ชื่อ": ["งาน1", "งาน2"] }
-                        const userTasks = {};
-                        for (const row of rows) {
-                            // สมมติให้ คอลัมน์ A = ชื่อ (row[0]), คอลัมน์ B = งาน (row[1])
-                            // (เผื่อพี่พึ่งลบ ID ทิ้งไป)
-                            let name = row[0] ? row[0].trim() : '';
-                            let task = row[1] ? row[1].trim() : '';
+                        const tasksList = [];
+                        const workersList = [];
 
-                            // ระบบป้องกันเผื่อพี่ลืมลบคอลัมน์ ID (ถ้าช่องแรกยาวๆ เป็น U... ให้ขยับไปดึงช่อง 2 กับ 3 แทน)
-                            if (name.startsWith('U') && name.length > 20) {
-                                name = row[1] ? row[1].trim() : '';
-                                task = row[2] ? row[2].trim() : '';
-                            }
-
-                            if (!name || !task) continue;
+                        // อ่านข้อมูลจากตาราง (Col A = งาน, Col B = ชื่อคน, Col C = ความถนัด)
+                        for (let i = 0; i < rows.length; i++) {
+                            const row = rows[i];
+                            if (row.length === 0) continue;
                             
-                            if (!userTasks[name]) {
-                                userTasks[name] = [];
-                            }
-                            userTasks[name].push(task);
+                            const task = row[0] ? row[0].trim() : '';
+                            const name = row[1] ? row[1].trim() : '';
+                            const skill = row[2] ? row[2].trim() : 'ทั่วไป';
+
+                            if (task) tasksList.push(task);
+                            if (name) workersList.push(`- ${name} (ทักษะ: ${skill})`);
                         }
 
-                        let fullText = "📋 **รายละเอียดงานประจำวัน:**\n\n";
-                        let hasTask = false;
-
-                        // วนลูปตามรายชื่อคน
-                        for (const [name, tasks] of Object.entries(userTasks)) {
-                            hasTask = true;
-                            fullText += `👷‍♂️ ชื่อ: ${name}\n`;
-
-                            // วนลูปตามงานของแต่ละคน (เพื่อใส่เลขข้อ 1, 2, 3...)
-                            for (let i = 0; i < tasks.length; i++) {
-                                const task = tasks[i];
-
-                                // แปลภาษาพม่าด้วย Gemini
-                                const prompt = `Translate this Thai factory task into Burmese for migrant workers. Use natural, everyday Burmese that is easy for factory workers to understand. Avoid overly formal or literary language. Only output the Burmese translation, nothing else.\n\nThai Task: ${task}`;
-                                let translated = 'ไม่สามารถแปลได้';
-                                try {
-                                    const aiResult = await genAI.models.generateContent({
-                                        model: 'gemini-3.6-flash',
-                                        contents: prompt
-                                    });
-                                    translated = aiResult.text.trim();
-                                } catch (e) {
-                                    console.error('Translate Error:', e);
-                                }
-
-                                fullText += `  ${i + 1}. 🇹🇭 ${task}\n      🇲🇲 ${translated}\n`;
-                            }
-                            fullText += `\n`; // เว้นบรรทัดระหว่างคน
-                        }
-
-                        if (!hasTask) {
-                            messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ' }];
+                        if (tasksList.length === 0 || workersList.length === 0) {
+                            messagesPayload = [{ type: 'text', text: '⚠️ ข้อมูลไม่ครบถ้วนค่ะ กรุณาตรวจสอบว่ามีทั้ง "ชื่องาน" (คอลัมน์ A) และ "รายชื่อพนักงาน" (คอลัมน์ B) ในตารางค่ะ' }];
                         } else {
-                            // ส่งข้อความ 1 กล่องปกติ (ไม่ต้องพยายามแท็กแล้ว เพราะ LINE บล็อกบอทฟรี)
-                            messagesPayload = [{
-                                type: 'text',
-                                text: fullText.trim()
-                            }];
+                            // ให้ Gemini เป็นคนคิด จัดสรรงาน และแปลภาษาในรอบเดียว!
+                            const prompt = `คุณคือ AI ผู้จัดการโรงงานอัจฉริยะ หน้าที่ของคุณคือการจับคู่งานให้พนักงานอย่างยุติธรรมและตรงกับทักษะของพวกเขา
+                            
+พนักงานที่มาทำงานวันนี้และทักษะ:
+${workersList.join('\n')}
+
+งานทั้งหมดที่ต้องทำวันนี้:
+${tasksList.map((t, idx) => `${idx+1}. ${t}`).join('\n')}
+
+กฎการแบ่งงานที่ต้องทำตามอย่างเคร่งครัด:
+1. วิเคราะห์ "ทักษะและระดับความเชี่ยวชาญ" ของพนักงานแต่ละคนอย่างละเอียด (พนักงาน 1 คนอาจมีหลายทักษะ และมีระดับความเก่งต่างกัน เช่น ระดับสูง, พื้นฐาน, หรือเกรด A, B)
+2. จับคู่งานให้ตรงกับผู้ที่มีทักษะและความเชี่ยวชาญ "สูงที่สุดและเหมาะสมที่สุด" ในด้านนั้นๆ ก่อนเป็นอันดับแรก (เช่น งานระบบไฟซับซ้อน ควรให้ช่างไฟระดับสูงทำ มากกว่าช่างไฟระดับพื้นฐาน)
+3. งานทั่วไปที่เหลือ ให้เฉลี่ยแบ่งให้ทุกคนในจำนวนที่ "เท่าๆ กันมากที่สุด" เพื่อไม่ให้ใครทำงานหนักเกินไป
+4. **สำคัญมาก**: ถ้าจำนวนงานมีน้อยกว่าจำนวนคน (มีพนักงานที่ว่าง) ให้มอบหมายพนักงานที่ว่างเหล่านั้นไปเป็น "ผู้ช่วย" ให้กับพนักงานคนที่มีงาน ห้ามปล่อยให้มีคนว่างงานเด็ดขาด (และถ้างานนั้นต้องใช้ความชำนาญสูง ควรนำคนที่มีทักษะระดับรองลงมาไปเป็นผู้ช่วยเพื่อเรียนรู้งาน)
+5. แปลรายละเอียดงานแต่ละข้อเป็นภาษาพม่า (ใช้ภาษาพูดที่แรงงานพม่าเข้าใจง่าย ห้ามใช้ภาษาทางการเกินไป)
+6. ห้ามใช้ Markdown code block (เช่นเครื่องหมาย \`\`\`) ในการตอบ
+7. รูปแบบการตอบกลับของคุณ ต้องจัดเรียงตามรูปแบบด้านล่างนี้เป๊ะๆ (ห้ามมีข้อความเกริ่นนำใดๆ ทั้งสิ้น เริ่มต้นด้วย @All เท่านั้น):
+
+@All 📋 **ตารางแจกงานประจำวัน (จัดสรรโดย AI):**
+
+👷‍♂️ ชื่อ: [ชื่อพนักงาน]
+  1. 🇹🇭 [ชื่องานภาษาไทย]
+      🇲🇲 [คำแปลพม่า]
+  2. 🇹🇭 [ชื่องานภาษาไทย]
+      🇲🇲 [คำแปลพม่า]
+
+(วนลูปไปจนครบทุกคน)
+
+⚠️ งานที่ไม่มีคนทำได้: (ถ้ามีงานที่ต้องใช้ทักษะเฉพาะแต่ไม่มีพนักงานที่มีทักษะนั้นมาทำงาน ให้ลิสต์ไว้ตรงนี้ พร้อมแปลพม่า ถ้าไม่มีให้ข้ามส่วนนี้ไปเลย)
+`;
+
+                            try {
+                                const aiResult = await genAI.models.generateContent({
+                                    model: 'gemini-3.6-flash',
+                                    contents: prompt
+                                });
+                                
+                                // ลบเครื่องหมาย markdown block ทิ้งถ้า AI เผลอใส่มา
+                                const finalMessage = aiResult.text.trim().replace(/```/g, '');
+                                
+                                // บันทึกตารางนี้เก็บไว้ให้ 'โหมดงานด่วน' อ่าน
+                                lastDailySchedule = finalMessage;
+                                
+                                messagesPayload = [{
+                                    type: 'text',
+                                    text: finalMessage
+                                }];
+                            } catch (e) {
+                                console.error('AI Manager Error:', e);
+                                messagesPayload = [{ type: 'text', text: '❌ ระบบ AI ผู้จัดการโรงงานขัดข้องค่ะ ไม่สามารถจัดตารางงานได้' }];
+                            }
                         }
 
                     } catch (e) {
                         console.error('แจกงาน Error:', e);
                         messagesPayload = [{ type: 'text', text: '❌ ไม่สามารถดึงข้อมูลแจกงานจาก Google Sheets ได้ค่ะ' }];
+                    }
+                }
+                // 1.0.2 ดักคำสั่ง "Bot งานด่วน" (สำหรับงานแทรกระหว่างวัน)
+                else if (userText.toLowerCase().includes('bot งานด่วน')) {
+                    // ตัดคำว่า bot งานด่วน ออก เพื่อเอาเฉพาะเนื้อหางาน
+                    const urgentTaskIndex = userText.toLowerCase().indexOf('bot งานด่วน');
+                    const urgentTask = userText.substring(urgentTaskIndex + 11).trim();
+
+                    if (!urgentTask) {
+                        messagesPayload = [{ type: 'text', text: '⚠️ กรุณาระบุรายละเอียดงานด่วนด้วยค่ะ เช่น "Bot งานด่วน ท่อน้ำแตก"' }];
+                    } else {
+                        try {
+                            const response = await axios.get(SHEET_CSV_URL);
+                            const rows = parseCSV(response.data);
+                            rows.shift(); // ตัดแถวหัวคอลัมน์
+
+                            const workersList = [];
+                            for (let i = 0; i < rows.length; i++) {
+                                const row = rows[i];
+                                if (row.length === 0) continue;
+                                const name = row[1] ? row[1].trim() : '';
+                                const skill = row[2] ? row[2].trim() : 'ทั่วไป';
+                                if (name) workersList.push(`- ${name} (ทักษะ: ${skill})`);
+                            }
+
+                            const prompt = `คุณคือ AI ผู้จัดการโรงงาน มี "งานด่วนแทรกเข้ามา" ระหว่างวัน ดังนี้:
+"${urgentTask}"
+
+พนักงานที่เข้างานวันนี้:
+${workersList.join('\n')}
+
+ตารางงานที่ถูกจัดไว้เมื่อเช้า (ใช้อ้างอิง):
+${lastDailySchedule || 'ไม่มีข้อมูลตารางงานตอนเช้า'}
+
+หน้าที่ของคุณ:
+1. วิเคราะห์งานด่วนนี้ หากในคำสั่งมีการ "ระบุชื่อพนักงาน" ไว้แล้ว ให้มอบหมายให้คนนั้น
+2. หาก "ไม่ได้ระบุชื่อ" ให้คุณเปรียบเทียบ "ทักษะและระดับความเชี่ยวชาญ" ของพนักงานทุกคน และเลือกคนที่เก่งและเหมาะสมกับงานนี้ที่สุดมา 1 คนเป็น "ผู้รับผิดชอบหลัก" 
+3. **กฎการดึงผู้ช่วย:** ให้ดูจาก "ตารางงานที่ถูกจัดไว้เมื่อเช้า" หากคนที่คุณเลือกเป็นผู้รับผิดชอบหลัก มีลูกน้องที่ถูกกำหนดให้เป็น "ผู้ช่วย" ของเขาอยู่แล้วเมื่อเช้า ให้คุณบังคับดึงผู้ช่วยคนเดิมนั้นมาเป็นผู้ช่วยในงานด่วนนี้ด้วยเสมอ! (หากไม่มี ให้พิจารณาดึงคนที่มีระดับทักษะรองลงมาหรือคนทั่วไปมา 1 คน)
+4. แปลรายละเอียดงานด่วนนี้เป็นภาษาพม่า (ภาษาพูด เข้าใจง่าย)
+5. รูปแบบการตอบกลับ ต้องเป๊ะตามด้านล่างนี้เท่านั้น ห้ามใช้ Markdown code block:
+
+🚨 **ประกาศงานด่วน!**
+👷‍♂️ ผู้รับผิดชอบหลัก: [ชื่อพนักงาน]
+👷‍♂️ ผู้ช่วย: [ชื่อพนักงาน]
+🇹🇭 งาน: [รายละเอียดงานด่วน]
+🇲🇲 [คำแปลภาษาพม่า]
+`;
+                            const aiResult = await genAI.models.generateContent({
+                                model: 'gemini-3.6-flash',
+                                contents: prompt
+                            });
+                            
+                            const finalMessage = aiResult.text.trim().replace(/```/g, '');
+                            messagesPayload = [{ type: 'text', text: finalMessage }];
+
+                        } catch (e) {
+                            console.error('Urgent Task Error:', e);
+                            messagesPayload = [{ type: 'text', text: '❌ ระบบ AI ขัดข้อง ไม่สามารถแจกงานด่วนได้ค่ะ' }];
+                        }
                     }
                 }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
