@@ -299,25 +299,18 @@ app.post('/webhook', async (req, res) => {
                 }
                 // 1.0.2 ระบบทดสอบการแท็ก (Echo Mention)
                 else if (userText.includes('ทดสอบแท็ก')) {
-                    if (event.message.mention && event.message.mention.mentionees && event.message.mention.mentionees.length > 0) {
-                        const targetId = event.message.mention.mentionees[0].userId;
-                        const textMsg = "@User test mention!";
-                        
-                        messagesPayload = [{
-                            type: 'text',
-                            text: textMsg,
-                            mention: {
-                                mentionees: [{
-                                    index: 0,
-                                    length: 5,
-                                    type: "user",
-                                    userId: targetId
-                                }]
-                            }
-                        }];
-                    } else {
-                        messagesPayload = [{ type: 'text', text: 'กรุณาพิมพ์ "ทดสอบแท็ก @ชื่อเพื่อน" เพื่อให้บอทลองแท็กกลับนะคะ' }];
-                    }
+                    const textMsg = "@All นี่คือการทดสอบแท็กทุกคนครับ (ถ้าสีน้ำเงินขึ้นและมือถือสั่น แปลว่าผ่าน!)";
+                    messagesPayload = [{
+                        type: 'text',
+                        text: textMsg,
+                        mention: {
+                            mentionees: [{
+                                index: 0,
+                                length: 4,
+                                type: "all"
+                            }]
+                        }
+                    }];
                 }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
                 else if (userText === 'สวัสดี') {
