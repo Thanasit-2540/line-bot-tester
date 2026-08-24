@@ -237,6 +237,7 @@ app.post('/webhook', async (req, res) => {
                         type: 'text', 
                         text: `✅ ลงทะเบียนสำเร็จ!\n\nคุณ: ${displayName}\nรหัส ID:\n${userId}\n\n(แจ้งหัวหน้าให้นำรหัสนี้ไปใส่ใน Excel ได้เลยค่ะ)` 
                     }];
+                }
                 // 1.0.1 ดักคำสั่ง "Bot แจกงาน" (รองรับการที่หัวหน้าพิมพ์ @All นำหน้า)
                 else if (userText.toLowerCase().includes('bot แจกงาน')) {
                     try {
