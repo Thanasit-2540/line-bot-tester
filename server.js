@@ -256,8 +256,8 @@ app.post('/webhook', async (req, res) => {
                             if (!name || !task) continue; // ข้ามถ้าไม่มีชื่อหรืองาน
                             hasTask = true;
 
-                            // แปลภาษาพม่าด้วย Gemini
-                            const prompt = `Translate this factory task to Burmese. Keep it clear, concise, and professional. Only output the Burmese translation, nothing else.\nTask: ${task}`;
+                            // แปลภาษาพม่าด้วย Gemini โดยเน้นภาษาพูดที่เข้าใจง่ายสำหรับแรงงาน
+                            const prompt = `Translate this Thai factory task into Burmese for migrant workers. Use natural, everyday Burmese that is easy for factory workers to understand. Avoid overly formal or literary language. Only output the Burmese translation, nothing else.\n\nThai Task: ${task}`;
                             let translated = 'ไม่สามารถแปลได้';
                             try {
                                 const aiResult = await genAI.models.generateContent({
