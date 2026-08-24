@@ -133,6 +133,22 @@ function saveChatMessage(userId, text) {
     fs.writeFileSync(CHAT_FILE, JSON.stringify(chats, null, 2));
 }
 
+// ระบบจัดการลงทะเบียน
+const REG_FILE = path.join(__dirname, 'registrations.json');
+function saveRegistration(userId, displayName) {
+    try {
+        let regs = [];
+        if (fs.existsSync(REG_FILE)) regs = JSON.parse(fs.readFileSync(REG_FILE, 'utf8'));
+        const existing = regs.find(r => r.userId === userId);
+        if (!existing) {
+            regs.push({ userId, displayName, timestamp: new Date().toISOString() });
+            fs.writeFileSync(REG_FILE, JSON.stringify(regs, null, 2));
+        }
+    } catch(e) {
+        console.error('Error saving registration', e);
+    }
+}
+
 // API สำหรับให้ LINE ส่ง Webhook เข้ามา
 app.post('/webhook', async (req, res) => {
     // ตอบกลับ LINE ทันทีว่าได้รับแล้ว (ต้องตอบ 200 ไม่งั้น LINE จะถือว่า error)
@@ -170,11 +186,36 @@ app.post('/webhook', async (req, res) => {
                 else if (userText === 'ลงทะเบียน') {
                     const userId = (source && source.userId) ? source.userId : 'ไม่พบ ID';
                     const userName = event.source.type === 'user' ? 'แชทส่วนตัว' : 'ในกลุ่ม';
+                    
+                    let displayName = 'ไม่ทราบชื่อ';
+                    try {
+                        if (userId !== 'ไม่พบ ID') {
+                            const profileRes = await axios.get(`https://api.line.me/v2/bot/profile/${userId}`, {
+                                headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` }
+                            });
+                            displayName = profileRes.data.displayName;
+                        }
+                    } catch (err) {
+                        if (source.groupId) {
+                            try {
+                                const groupProfileRes = await axios.get(`https://api.line.me/v2/bot/group/${source.groupId}/member/${userId}`, {
+                                    headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` }
+                                });
+                                displayName = groupProfileRes.data.displayName;
+                            } catch (e) {}
+                        }
+                    }
+
+                    // บันทึกการลงทะเบียน
+                    if (userId !== 'ไม่พบ ID') {
+                        saveRegistration(userId, displayName);
+                    }
+
                     messagesPayload = [{ 
                         type: 'text', 
-                        text: `✅ ลงทะเบียนสำเร็จ!\n\nรหัส ID ของคุณคือ:\n${userId}\n\n(แจ้งหัวหน้าให้นำรหัสนี้ไปใส่ใน Excel ได้เลยค่ะ)` 
+                        text: `✅ ลงทะเบียนสำเร็จ!\n\nคุณ: ${displayName}\nรหัส ID:\n${userId}\n\n(แจ้งหัวหน้าให้นำรหัสนี้ไปใส่ใน Excel ได้เลยค่ะ)` 
                     }];
-                    console.log(`[Register] UserID: ${userId} from ${userName}`);
+                    console.log(`[Register] UserID: ${userId} (${displayName}) from ${userName}`);
                 }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
                 else if (userText === 'สวัสดี') {
@@ -386,6 +427,16 @@ app.post('/webhook', async (req, res) => {
 // API สำหรับดึงรายชื่อ ID ทั้งหมดไปโชว์ที่หน้าเว็บ
 app.get('/api/users', (req, res) => {
     res.json({ success: true, data: getSavedUsers() });
+});
+
+// API สำหรับดึงรายชื่อคนลงทะเบียน
+app.get('/api/registrations', (req, res) => {
+    try {
+        if (!fs.existsSync(REG_FILE)) fs.writeFileSync(REG_FILE, '[]');
+        res.json({ success: true, data: JSON.parse(fs.readFileSync(REG_FILE, 'utf8')) });
+    } catch(e) {
+        res.json({ success: false, error: e.message, data: [] });
+    }
 });
 
 // API สำหรับดึงประวัติข้อความแชท
