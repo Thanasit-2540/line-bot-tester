@@ -149,6 +149,28 @@ function saveRegistration(userId, displayName) {
     }
 }
 
+// ==========================================
+// ฐานข้อมูล Google Sheets แจกงาน
+// ==========================================
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSGWguV2X4V2C-63hpek3FmcNsBsJd4tgCbMH4oo9DhSs4TqjNpu0xLlJEttqg0e6QUkg4viTs25APi/pub?output=csv';
+
+// ฟังก์ชันอ่านไฟล์ CSV แบบง่าย (รองรับเครื่องหมายคอมม่าในข้อความ)
+function parseCSV(str) {
+    const result = [];
+    let row = [], inQuotes = false, val = '';
+    for (let i = 0; i < str.length; i++) {
+        let c = str[i], next = str[i+1];
+        if (c === '"' && inQuotes && next === '"') { val += '"'; i++; }
+        else if (c === '"') { inQuotes = !inQuotes; }
+        else if (c === ',' && !inQuotes) { row.push(val.trim()); val = ''; }
+        else if (c === '\n' && !inQuotes) { row.push(val.trim()); result.push(row); row = []; val = ''; }
+        else if (c === '\r' && !inQuotes) { /* ข้าม \r */ }
+        else { val += c; }
+    }
+    row.push(val.trim()); result.push(row);
+    return result;
+}
+
 // API สำหรับให้ LINE ส่ง Webhook เข้ามา
 app.post('/webhook', async (req, res) => {
     // ตอบกลับ LINE ทันทีว่าได้รับแล้ว (ต้องตอบ 200 ไม่งั้น LINE จะถือว่า error)
@@ -216,6 +238,71 @@ app.post('/webhook', async (req, res) => {
                         text: `✅ ลงทะเบียนสำเร็จ!\n\nคุณ: ${displayName}\nรหัส ID:\n${userId}\n\n(แจ้งหัวหน้าให้นำรหัสนี้ไปใส่ใน Excel ได้เลยค่ะ)` 
                     }];
                     console.log(`[Register] UserID: ${userId} (${displayName}) from ${userName}`);
+                }
+                // 1.0.1 ดักคำสั่ง "Bot แจกงาน" หรือ "bot แจกงาน"
+                else if (userText.toLowerCase() === 'bot แจกงาน') {
+                    try {
+                        const response = await axios.get(SHEET_CSV_URL);
+                        const rows = parseCSV(response.data);
+                        rows.shift(); // ตัดแถวหัวคอลัมน์ทิ้ง
+
+                        let fullText = "📋 **แจกจ่ายงานประจำวันค่ะ!**\n\n";
+                        let mentionees = [];
+
+                        for (const row of rows) {
+                            if (row.length < 3) continue; // ข้ามแถวที่ไม่ครบ
+                            const lineId = row[0];
+                            const name = row[1];
+                            const task = row[2];
+
+                            if (!lineId || !task) continue; // ข้ามถ้าไม่มี ID หรือไม่มีงาน
+
+                            // แปลภาษาพม่าด้วย Gemini
+                            const prompt = `Translate this factory task to Burmese. Keep it clear, concise, and professional. Only output the Burmese translation, nothing else.\nTask: ${task}`;
+                            let translated = 'ไม่สามารถแปลได้';
+                            try {
+                                const aiResult = await genAI.models.generateContent({
+                                    model: 'gemini-3.6-flash',
+                                    contents: prompt
+                                });
+                                translated = aiResult.text.trim();
+                            } catch (e) {
+                                console.error('Translate Error:', e);
+                            }
+
+                            // จัดรูปแบบข้อความแท็ก
+                            const mentionText = `@${name}`;
+                            const startIndex = fullText.length; // ตำแหน่งเริ่มของตัว @
+
+                            fullText += `${mentionText}\n🇹🇭 งาน: ${task}\n🇲🇲: ${translated}\n\n`;
+
+                            mentionees.push({
+                                index: startIndex,
+                                length: mentionText.length,
+                                userId: lineId
+                            });
+                        }
+
+                        if (mentionees.length === 0) {
+                            messagesPayload = [{ type: 'text', text: 'วันนี้ไม่มีตารางงานในระบบค่ะ 😎' }];
+                        } else {
+                            // LINE API ให้ mention ได้สูงสุด 20 คนต่อ 1 บับเบิ้ล (ถ้าเกินต้องหั่น แต่ตอนนี้เผื่อไว้ก่อน)
+                            if (mentionees.length > 20) {
+                                mentionees = mentionees.slice(0, 20);
+                                fullText += "\n*(ระบบแสดงผลได้สูงสุด 20 คน)*";
+                            }
+                            
+                            messagesPayload = [{
+                                type: 'text',
+                                text: fullText.trim(),
+                                mention: { mentionees: mentionees }
+                            }];
+                        }
+
+                    } catch (e) {
+                        console.error('แจกงาน Error:', e);
+                        messagesPayload = [{ type: 'text', text: '❌ ไม่สามารถดึงข้อมูลแจกงานจาก Google Sheets ได้ค่ะ' }];
+                    }
                 }
                 // 1.1 ปุ่มทักทาย (จากการ์ด Flex)
                 else if (userText === 'สวัสดี') {

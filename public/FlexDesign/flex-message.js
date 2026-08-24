@@ -91,6 +91,14 @@ function getSmartFactoryFlexMessage() {
                     {
                         type: "button",
                         style: "primary",
+                        color: "#2196F3", // สีฟ้าสดใส
+                        height: "sm",
+                        action: { type: "message", label: "📋 แจกงานลูกน้อง", text: "Bot แจกงาน" },
+                        margin: "sm"
+                    },
+                    {
+                        type: "button",
+                        style: "primary",
                         color: "#3A3F50",
                         height: "sm",
                         action: { type: "message", label: "🙏 ออกจากระบบ", text: "ขอบคุณครับ" },
