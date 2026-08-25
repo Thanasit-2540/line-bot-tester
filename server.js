@@ -269,46 +269,64 @@ app.post('/webhook', async (req, res) => {
                             userTasks[name].push(task);
                         }
 
-                        let fullText = "📋 **รายละเอียดงานประจำวัน:**\n\n";
+                        let rawTasksText = "";
                         let hasTask = false;
 
-                        // วนลูปตามรายชื่อคนที่หัวหน้าจัดไว้
+                        // สร้างข้อความตั้งต้นแบบรวบยอด
                         for (const [name, tasks] of Object.entries(userTasks)) {
                             hasTask = true;
-                            fullText += `👷‍♂️ ชื่อ: ${name}\n`;
-
-                            // วนลูปแปลงานของแต่ละคน (แปลทีละข้อ)
+                            rawTasksText += `ชื่อ: ${name}\n`;
                             for (let i = 0; i < tasks.length; i++) {
-                                const task = tasks[i];
-
-                                // ใช้ AI แค่เป็น "วุ้นแปลภาษา" เท่านั้น
-                                const prompt = `Translate this Thai factory task into Burmese for migrant workers. Use natural, everyday Burmese that is easy for factory workers to understand. Avoid overly formal language. Only output the Burmese translation, nothing else.\n\nThai Task: ${task}`;
-                                let translated = 'ไม่สามารถแปลได้';
-                                try {
-                                    const aiResult = await genAI.models.generateContent({
-                                        model: 'gemini-3.6-flash',
-                                        contents: prompt
-                                    });
-                                    translated = aiResult.text.trim();
-                                } catch (e) {
-                                    console.error('Translate Error:', e);
-                                }
-
-                                fullText += `  ${i + 1}. 🇹🇭 ${task}\n      🇲🇲 ${translated}\n`;
+                                rawTasksText += `${i + 1}. ${tasks[i]}\n`;
                             }
-                            fullText += `\n`; // เว้นบรรทัดระหว่างคน
+                            rawTasksText += `\n`;
                         }
 
                         if (!hasTask) {
                             messagesPayload = [{ type: 'text', text: '⚠️ วันนี้ไม่มีตารางงานในระบบค่ะ หรือตารางอาจจะว่างเปล่า' }];
                         } else {
-                            // บันทึกตารางนี้เก็บไว้ให้ 'โหมดงานด่วน' อ่าน
-                            lastDailySchedule = fullText.trim();
-                            
-                            messagesPayload = [{
-                                type: 'text',
-                                text: fullText.trim()
-                            }];
+                            // ส่งให้ AI แปลรวดเดียวจบใน 1 คำขอ (แก้ปัญหา Rate Limit การส่งถี่ยิบ)
+                            const prompt = `คุณคือผู้ช่วยแปลภาษาในโรงงาน
+นี่คือรายการแจกงานประจำวันของพนักงานที่หัวหน้าจัดไว้:
+
+${rawTasksText}
+
+หน้าที่ของคุณ:
+1. แปลรายละเอียดงานแต่ละข้อให้เป็นภาษาพม่า (ใช้ภาษาพูด เข้าใจง่ายสำหรับแรงงานพม่า)
+2. **ห้ามข้าม ห้ามตัด หรือลดทอนงานข้อใดข้อหนึ่งทิ้งเด็ดขาด** (ต้องแปลให้ครบทุกข้อตามที่ให้ไป)
+3. **ห้ามแก้ไขข้อความภาษาไทยต้นฉบับเด็ดขาด** ให้คงข้อความภาษาไทยเดิมไว้เป๊ะๆ
+4. ห้ามสลับชื่องานกับชื่อพนักงาน
+5. จัดรูปแบบการตอบกลับให้เหมือนตัวอย่างด้านล่างนี้เป๊ะๆ ห้ามใช้ Markdown code block:
+
+📋 **รายละเอียดงานประจำวัน:**
+
+👷‍♂️ ชื่อ: [ชื่อพนักงาน]
+  1. 🇹🇭 [ชื่องานภาษาไทยข้อ 1]
+      🇲🇲 [คำแปลพม่าข้อ 1]
+  2. 🇹🇭 [ชื่องานภาษาไทยข้อ 2]
+      🇲🇲 [คำแปลพม่าข้อ 2]
+
+(แปลและจัดรูปแบบเรียงไปจนครบทุกคนที่หัวหน้าสั่ง)`;
+
+                            try {
+                                const aiResult = await genAI.models.generateContent({
+                                    model: 'gemini-3.6-flash',
+                                    contents: prompt
+                                });
+                                
+                                const finalMessage = aiResult.text.trim().replace(/```/g, '');
+                                
+                                // บันทึกตารางนี้เก็บไว้ให้ 'โหมดงานด่วน' อ่าน
+                                lastDailySchedule = finalMessage;
+                                
+                                messagesPayload = [{
+                                    type: 'text',
+                                    text: finalMessage
+                                }];
+                            } catch (e) {
+                                console.error('Batch Translate Error:', e);
+                                messagesPayload = [{ type: 'text', text: '❌ ระบบแปลภาษาขัดข้องค่ะ' }];
+                            }
                         }
                     } catch (e) {
                         console.error('แจกงาน Error:', e);
