@@ -310,7 +310,7 @@ ${rawTasksText}
 
                             try {
                                 const aiResult = await genAI.models.generateContent({
-                                    model: 'gemini-1.5-flash',
+                                    model: 'gemini-2.5-flash',
                                     contents: prompt
                                 });
                                 
@@ -358,7 +358,7 @@ ${rawTasksText}
 🇲🇲 [คำแปลภาษาพม่า]
 `;
                             const aiResult = await genAI.models.generateContent({
-                                model: 'gemini-1.5-flash',
+                                model: 'gemini-2.5-flash',
                                 contents: prompt
                             });
                             
