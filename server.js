@@ -461,7 +461,7 @@ ${rawTasksText}
                                     
                                     // ใช้ SDK ใหม่ @google/genai (v1alpha - รองรับโมเดลล่าสุด)
                                     const result = await genAI.models.generateContent({
-                                        model: "gemini-2.0-flash",
+                                        model: "gemini-3.6-flash",
                                         contents: prompt
                                     });
                                     const aiResponse = result.text;
