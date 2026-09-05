@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
@@ -173,6 +173,10 @@ function parseCSV(str) {
 
 // เก็บประวัติตารางงานตอนเช้าไว้ในหน่วยความจำชั่วคราว เพื่อให้โหมดงานด่วนใช้อ้างอิงผู้ช่วย
 let lastDailySchedule = "";
+
+// เก็บประวัติบทสนทนาของแต่ละห้อง (groupId หรือ userId) ไว้สูงสุด 5 รอบสนทนาล่าสุด
+const conversationHistory = {};
+const MAX_HISTORY = 5; // จำบทสนทนาย้อนหลังกี่รอบ
 
 // API สำหรับให้ LINE ส่ง Webhook เข้ามา
 app.post('/webhook', async (req, res) => {
@@ -416,19 +420,6 @@ ${rawTasksText}
                             if (global.aiRequestTimestamps.length >= 10) {
                                 messagesPayload = [{ type: 'text', text: 'ใจเย็นๆ ก่อนนะคะพี่ๆ รัวเกินไปแล้ว ขอพักแป๊บนึงนะคะ 😵‍💫' }];
                             } else {
-                                global.aiRequestTimestamps.push(now);
-                                const extraQuestion = question.substring(4).trim(); // ตัด "ดูรูป" ออก
-                                const analysisPrompt = extraQuestion
-                                    ? `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้แล้วตอบคำถามนี้: "${extraQuestion}" ตอบไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ`
-                                    : `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้ให้หน่อยนะคะ บอกว่าเห็นอะไร มีอะไรผิดปกติไหม แนะนำสั้นๆ ไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ`;
-                                const result = await genAI.models.generateContent({
-                                    model: "gemini-2.0-flash",
-                                    contents: [{
-                                        role: "user",
-                                        parts: [
-                                            { inlineData: { mimeType: savedImage.mimeType, data: savedImage.data } },
-                                            { text: analysisPrompt }
-                                        ]
                                     }]
                                 });
                                 messagesPayload = [{ type: 'text', text: result.text }];
@@ -456,17 +447,27 @@ ${rawTasksText}
                                 } else {
                                     // บันทึกเวลาที่เรียกใช้งานครั้งนี้
                                     global.aiRequestTimestamps.push(now);
+
+                                    // ระบบจำบทสนทนา: ดึงประวัติของห้องนี้
+                                    const roomId = event.source.groupId || event.source.userId || 'default';
+                                    if (!conversationHistory[roomId]) conversationHistory[roomId] = [];
+                                    conversationHistory[roomId].push({ role: 'user', parts: [{ text: question }] });
+                                    if (conversationHistory[roomId].length > MAX_HISTORY * 2) {
+                                        conversationHistory[roomId] = conversationHistory[roomId].slice(-MAX_HISTORY * 2);
+                                    }
                                     
-                                    // สั่งให้ AI สวมบทบาทเป็นผู้หญิง ติดตลก และจำกัดคำตอบไม่เกิน 30 คำ
-                                    const prompt = `คุณคือผู้ช่วย AI ประจำโรงงานอุตสาหกรรม ชื่อ "น้องบอท" เป็นเพศหญิง นิสัยร่าเริง กวนนิดๆ ติดตลกหน่อยๆ คุยเก่งและเป็นกันเอง คอยช่วยงานช่างและวิศวกร\n\nกฎสำคัญมากที่ต้องปฏิบัติตามเสมอ:\n1. ตอบสั้นๆ ไม่เกิน 30 คำเท่านั้น ถ้าเกินให้สรุปให้สั้นลงก่อนส่ง\n2. ห้ามแสดงโค้ดหรือตัวอย่างยาวๆ ถ้าถามเรื่องโค้ดให้บอกแนวทางสั้นๆ แทน\n3. ลงท้ายด้วย 'ค่ะ' หรือ 'นะคะ' เสมอ\n\nคำถาม: ${question}`;
-                                    
-                                    // ใช้ SDK ใหม่ @google/genai (v1alpha - รองรับโมเดลล่าสุด)
+                                    // ส่ง prompt พร้อมประวัติบทสนทนาให้ AI ตอบแบบต่อเนื่อง
+                                    const systemInstruction = "คุณคือผู้ช่วย AI ประจำโรงงาน ชื่อ น้องบอท เพศหญิง ร่าเริง กวนนิดๆ ติดตลก จำบทสนทนาก่อนหน้าและตอบให้ต่อเนื่อง ตอบไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ เสมอ";
                                     const result = await genAI.models.generateContent({
                                         model: "gemini-3.6-flash",
-                                        contents: prompt
+                                        contents: conversationHistory[roomId],
+                                        config: { systemInstruction }
                                     });
                                     const aiResponse = result.text;
-                                    
+
+                                    // บันทึกคำตอบของ AI ลงประวัติ เพื่อให้รอบถัดไปบอทจำได้
+                                    conversationHistory[roomId].push({ role: 'model', parts: [{ text: aiResponse }] });
+
                                     messagesPayload = [{ type: 'text', text: aiResponse }];
                                 }
                             } catch (error) {
