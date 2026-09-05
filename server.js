@@ -419,7 +419,21 @@ ${rawTasksText}
                             global.aiRequestTimestamps = (global.aiRequestTimestamps || []).filter(t => now - t < 60000);
                             if (global.aiRequestTimestamps.length >= 10) {
                                 messagesPayload = [{ type: 'text', text: 'ใจเย็นๆ ก่อนนะคะพี่ๆ รัวเกินไปแล้ว ขอพักแป๊บนึงนะคะ 😵‍💫' }];
-                            } else {
+                                } else {
+                                global.aiRequestTimestamps.push(now);
+                                const extraQuestion = question.substring(4).trim(); // ตัด "ดูรูป" ออก
+                                const analysisPrompt = extraQuestion
+                                    ? `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้แล้วตอบคำถามนี้: "${extraQuestion}" ตอบไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ`
+                                    : `คุณคือ "น้องบอท" เพศหญิง ร่าเริง ติดตลกนิดๆ วิเคราะห์รูปนี้ให้หน่อยนะคะ บอกว่าเห็นอะไร มีอะไรผิดปกติไหม แนะนำสั้นๆ ไม่เกิน 40 คำ ลงท้ายด้วย ค่ะ/นะคะ`;
+                                
+                                const result = await genAI.models.generateContent({
+                                    model: "gemini-3.6-flash",
+                                    contents: [{
+                                        role: "user",
+                                        parts: [
+                                            { inlineData: { mimeType: savedImage.mimeType, data: savedImage.data } },
+                                            { text: analysisPrompt }
+                                        ]
                                     }]
                                 });
                                 messagesPayload = [{ type: 'text', text: result.text }];
